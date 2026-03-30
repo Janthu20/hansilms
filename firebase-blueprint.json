@@ -1,0 +1,72 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "student"] }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Course": {
+      "title": "Course",
+      "description": "A learning course",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "thumbnail": { "type": "string" }
+      },
+      "required": ["title"]
+    },
+    "Month": {
+      "title": "Month",
+      "description": "A monthly module within a course",
+      "type": "object",
+      "properties": {
+        "courseId": { "type": "string" },
+        "title": { "type": "string" },
+        "order": { "type": "integer" }
+      },
+      "required": ["courseId", "title", "order"]
+    },
+    "Week": {
+      "title": "Week",
+      "description": "A weekly session within a month",
+      "type": "object",
+      "properties": {
+        "monthId": { "type": "string" },
+        "title": { "type": "string" },
+        "zoomLink": { "type": "string" },
+        "startTime": { "type": "string", "format": "date-time" },
+        "endTime": { "type": "string", "format": "date-time" },
+        "youtubeEmbedId": { "type": "string" },
+        "pdfUrl": { "type": "string" },
+        "order": { "type": "integer" }
+      },
+      "required": ["monthId", "title", "order"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/courses/{courseId}": {
+      "schema": "Course",
+      "description": "Available courses"
+    },
+    "/courses/{courseId}/months/{monthId}": {
+      "schema": "Month",
+      "description": "Monthly modules for a course"
+    },
+    "/courses/{courseId}/months/{monthId}/weeks/{weekId}": {
+      "schema": "Week",
+      "description": "Weekly sessions for a module"
+    }
+  }
+}

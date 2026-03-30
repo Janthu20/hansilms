@@ -1,0 +1,147 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: userId (uid)
+    // Fields:
+    //   - uid: string (required)
+    //   - email: string (required)
+    //   - displayName: string (optional)
+    //   - role: string (required, 'admin' or 'student')
+    //
+    // Collection: courses
+    // Document ID: courseId
+    // Fields:
+    //   - title: string (required)
+    //   - description: string (optional)
+    //   - thumbnail: string (optional)
+    //
+    // Collection: courses/{courseId}/months
+    // Document ID: monthId
+    // Fields:
+    //   - courseId: string (required)
+    //   - title: string (required)
+    //   - order: number (required)
+    //
+    // Collection: courses/{courseId}/months/{monthId}/weeks
+    // Document ID: weekId
+    // Fields:
+    //   - monthId: string (required)
+    //   - title: string (required)
+    //   - zoomLink: string (optional)
+    //   - startTime: timestamp (optional)
+    //   - endTime: timestamp (optional)
+    //   - youtubeEmbedId: string (optional)
+    //   - pdfUrl: string (optional)
+    //   - order: number (required)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "xpisuru@gmail.com"));
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidUrl(url) {
+      return url is string && (url.matches("^https://.*") || url.matches("^http://.*"));
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return hasOnlyAllowedFields(['uid', 'email', 'displayName', 'role']) &&
+             data.uid is string && data.uid.size() > 0 &&
+             data.email is string && isValidEmail(data.email) &&
+             data.role in ['admin', 'student'];
+    }
+
+    function isValidCourse(data) {
+      return hasRequiredFields(['title']) &&
+             hasOnlyAllowedFields(['title', 'description', 'thumbnail']) &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 200;
+    }
+
+    function isValidMonth(data) {
+      return hasRequiredFields(['courseId', 'title', 'order']) &&
+             hasOnlyAllowedFields(['courseId', 'title', 'order']) &&
+             data.courseId is string && data.title is string && data.order is number;
+    }
+
+    function isValidWeek(data) {
+      return hasRequiredFields(['monthId', 'title', 'order']) &&
+             hasOnlyAllowedFields(['monthId', 'title', 'zoomLink', 'startTime', 'endTime', 'youtubeEmbedId', 'pdfUrl', 'order']) &&
+             data.monthId is string && data.title is string && data.order is number;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) && (isOwner(userId) || isAdmin());
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) && (isOwner(userId) && request.resource.data.role == resource.data.role || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /courses/{courseId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAdmin() && isValidCourse(request.resource.data);
+
+      match /months/{monthId} {
+        allow read: if isAuthenticated();
+        allow create, update, delete: if isAdmin() && isValidMonth(request.resource.data);
+
+        match /weeks/{weekId} {
+          allow read: if isAuthenticated();
+          allow create, update, delete: if isAdmin() && isValidWeek(request.resource.data);
+        }
+      }
+    }
+
+    match /{path=**}/months/{monthId} {
+      allow read: if isAuthenticated();
+    }
+
+    match /{path=**}/weeks/{weekId} {
+      allow read: if isAuthenticated();
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
